@@ -149,13 +149,20 @@ html, body, [data-testid="stApp"] { background: var(--paper); color: var(--ink);
 
 /* widgets */
 [data-testid="stWidgetLabel"] p { font-weight: 600; font-size: .9rem; color: var(--ink); }
-[data-baseweb="select"] > div, [data-baseweb="input"], [data-baseweb="base-input"],
-[data-testid="stNumberInput"] input, [data-testid="stTextInput"] input {
-  background: var(--card) !important; border-radius: 8px !important;
-  border-color: var(--line) !important; color: var(--ink) !important; }
+/* one border per control: style the outer wrapper, strip the inner layers */
+[data-baseweb="select"] > div, [data-baseweb="input"] {
+  background: var(--card) !important; border: 1px solid var(--line) !important;
+  border-radius: 8px !important; color: var(--ink) !important; overflow: hidden; }
+[data-baseweb="base-input"], [data-baseweb="input"] input {
+  background: transparent !important; border: 0 !important; border-radius: 0 !important;
+  box-shadow: none !important; color: var(--ink) !important; }
+[data-baseweb="select"] div, [data-baseweb="select"] span { color: var(--ink); }
+[data-baseweb="select"] svg { fill: var(--muted); }
+[data-testid="stNumberInput"] button { background: transparent !important; color: var(--ink) !important;
+  border: 0 !important; border-left: 1px solid var(--line) !important; border-radius: 0 !important; }
+[data-testid="stNumberInput"] button:hover { background: var(--paper) !important; }
 [data-baseweb="select"] > div:focus-within, [data-baseweb="input"]:focus-within {
   border-color: var(--moss) !important; box-shadow: 0 0 0 3px rgba(31,92,74,.18) !important; }
-[data-testid="stNumberInput"] button { background: var(--card) !important; color: var(--ink) !important; }
 
 /* primary button */
 .stButton > button {
