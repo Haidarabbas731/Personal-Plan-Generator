@@ -1,21 +1,34 @@
-from langchain_google_genai import GoogleGenerativeAI
-from langchain.chains import LLMChain
-from langchain.prompts import PromptTemplate
-from langchain_together import Together
-from dotenv import load_dotenv
 import os
-import time
-import streamlit as st
 
-# Load environment variables
+import requests
+import streamlit as st
+from dotenv import load_dotenv
+from google import genai
+from langchain_core.output_parsers import StrOutputParser
+from langchain_core.prompts import ChatPromptTemplate
+from langchain_google_genai import ChatGoogleGenerativeAI
+from langchain_openrouter import ChatOpenRouter
+
 load_dotenv()
 
-# API Keys
-GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY")
-TOGETHER_API_KEY = os.getenv("TOGETHER_API_KEY")
+st.set_page_config(page_title="Personal Plan Generator", page_icon="🧭", layout="centered")
 
-# Categories for selection
-categories = [
+
+def get_key(name: str) -> str | None:
+    """Read a key from the environment (.env) or Streamlit secrets."""
+    value = os.getenv(name)
+    if value:
+        return value
+    try:
+        return st.secrets.get(name)
+    except Exception:
+        return None
+
+
+GOOGLE_API_KEY = get_key("GOOGLE_API_KEY")
+OPENROUTER_API_KEY = get_key("OPENROUTER_API_KEY")
+
+CATEGORIES = [
     "Programming 💻",
     "Art 🎨",
     "Music 🎶",
@@ -23,114 +36,269 @@ categories = [
     "Cooking 🍳",
     "Languages 🌍",
     "Learning ✍️",
-    "Business 📈"
+    "Business 📈",
 ]
 
-# Personal Plan Template
-plan_template = f"""
-🎯 **Your Task**:  
-You are a **senior {{category}} professional**, renowned for your expertise and ranked in the **top 1%** of the market. Using your vast knowledge and experience, generate a **personalized plan** to master **{{skill}}** in the category of **{{category}}**, creating a significant impact by ensuring daily measurable progress.  
+# ---------------------------------------------------------------- prompt
+plan_prompt = ChatPromptTemplate.from_messages(
+    [
+        (
+            "system",
+            "You are a senior {category} coach with 20 years of experience teaching people "
+            "to reach real competence. You write realistic, specific study plans, not "
+            "motivational filler. Every task is something the learner can start immediately "
+            "and know when it is finished.",
+        ),
+        (
+            "human",
+            """Build a day-by-day plan.
 
-📅 **Plan Details**:  
-1️⃣ **Skill to Master**: {{skill}}  
-2️⃣ **Category**: {{category}}  
-3️⃣ **Total Days Available**: {{days_available}}  
-4️⃣ **Daily Time Commitment**: {{daily_time}} hours  
+Skill: {skill}
+Category: {category}
+Days available: {days_available}
+Time per day: {daily_time} hour(s)
+Milestone every: {milestone_interval} day(s)
 
-📝 **Plan Requirements**:  
-✅ Each day MUST include a **clear, actionable objective** with subtopics to master. No days should be skipped or merged into intervals.  
-✅ Allocate **specific activities** for every single day, ensuring equal focus on **learning**, **practicing**, and **reviewing**.  
-✅ Include milestones as **additional tasks** (not skipping days) for motivation and tracking.  
-✅ Focus on practical learning with examples and exercises to solidify knowledge.  
-✅ Use **emojis** and engaging language to make the plan approachable and fun.  
-
-✨ **Example Plan**:  
-📖 **Day 1**: Understand the basic concepts of {{skill}} (e.g., foundational terms, definitions).  
-💡 **Day 2**: Practice foundational exercises (e.g., solve simple problems related to {{skill}}).  
-📖 **Day 3**: Explore advanced subtopics of {{skill}} (e.g., advanced terms, implementation).  
-...  
-🚀 **Milestone Days**: Celebrate achievements and reinforce learning by completing milestone tasks (e.g., mini-projects or tests).  
-
-📌 **Now, create a step-by-step plan** to help achieve mastery in **{{skill}}** within **{{days_available}}** days, dedicating **{{daily_time}}** hours daily. Ensure each day has unique tasks and maintains momentum toward the goal.
-"""
-
-
-
-# Initialize PromptTemplate with category
-plan_prompt = PromptTemplate(
-    template=plan_template,
-    input_variables=["skill", "category", "days_available", "daily_time", "milestone_interval"]
+Rules:
+- Output exactly {days_available} days, numbered Day 1 to Day {days_available}. Never skip, merge or summarise days.
+- Group days under a `## Week N: <theme>` heading (last week may be shorter). Each week theme should build on the previous one.
+- Format each day as:
+  **Day N · <short title>** (~{daily_time}h)
+  - Learn: <specific concept or resource type>
+  - Practice: <concrete exercise with a measurable result>
+  - Review: <what to recall or fix from earlier days>
+- Split each day's time sensibly across Learn / Practice / Review, favouring Practice.
+- Every {milestone_interval} days, add a line `🏁 Milestone: <small project or test and how to judge it>` directly after that day.
+- Start with a 2-sentence overview of the path. Finish with a short "Where you'll be on Day {days_available}" paragraph.
+- No intro chatter, no closing questions. Markdown only.""",
+        ),
+    ]
 )
 
-# Initialize models
-gemini_model = GoogleGenerativeAI(model="gemini-1.0-pro")
-mistral_model = Together(model="mistralai/Mistral-7B-Instruct-v0.3")
-llama_model = Together(model="meta-llama/Llama-3.3-70B-Instruct-Turbo")
-qwen_model = Together(model="Qwen/Qwen2.5-Coder-32B-Instruct")
 
-# Create chains for each model
-plan_chains = {
-    "Gemini Pro": plan_prompt | gemini_model,
-    "Mistral 7B": plan_prompt | mistral_model,
-    "LLaMA 70B": plan_prompt | llama_model,
-    "Qwen 32B": plan_prompt | qwen_model,
+# ---------------------------------------------------------------- model discovery
+@st.cache_data(ttl=3600, show_spinner=False)
+def list_gemini_models(api_key: str) -> list[str]:
+    client = genai.Client(api_key=api_key)
+    names = []
+    for m in client.models.list():
+        actions = m.supported_actions or []
+        name = (m.name or "").removeprefix("models/")
+        if "generateContent" in actions and name.startswith("gemini"):
+            names.append(name)
+    return sorted(set(names), reverse=True)
+
+
+@st.cache_data(ttl=3600, show_spinner=False)
+def list_openrouter_models(api_key: str) -> list[str]:
+    resp = requests.get(
+        "https://openrouter.ai/api/v1/models",
+        headers={"Authorization": f"Bearer {api_key}"},
+        timeout=15,
+    )
+    resp.raise_for_status()
+    ids = []
+    for m in resp.json().get("data", []):
+        outputs = (m.get("architecture") or {}).get("output_modalities") or ["text"]
+        if outputs == ["text"] and not m["id"].endswith(":batch"):
+            ids.append(m["id"])
+    return sorted(ids)
+
+
+def build_llm(provider: str, model: str):
+    if provider == "Google Gemini":
+        return ChatGoogleGenerativeAI(model=model, google_api_key=GOOGLE_API_KEY)
+    return ChatOpenRouter(model=model, api_key=OPENROUTER_API_KEY)
+
+
+# ---------------------------------------------------------------- styling
+st.markdown(
+    """
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700;12..96,800&family=Instrument+Sans:wght@400;500;600&family=JetBrains+Mono:wght@400;600&display=swap');
+
+:root {
+  --paper: #eef1ec;
+  --card: #fbfcfa;
+  --ink: #12211d;
+  --muted: #5b6b66;
+  --line: #cfd8d2;
+  --signal: #ff5a1f;
+  --signal-ink: #ffffff;
+  --moss: #1f5c4a;
 }
 
-# Streamlit UI
-st.title("Personal Plan Generator")
-st.subheader("Generate a step-by-step plan to master a skill using Generative AI")
+html, body, [data-testid="stApp"] { background: var(--paper); color: var(--ink); }
+[data-testid="stApp"] { font-family: 'Instrument Sans', system-ui, sans-serif; }
+#MainMenu, footer, [data-testid="stToolbar"], [data-testid="stDecoration"] { display: none; }
+[data-testid="stHeader"] { background: transparent; }
+.block-container { max-width: 760px; padding-top: 2.5rem; padding-bottom: 5rem; }
 
-# Model selection
-selected_model = st.selectbox(
-    "Select AI Model",
-    options=list(plan_chains.keys()),
-    help="Choose the AI model to generate your personalized plan."
+/* masthead */
+.eyebrow { font: 600 0.72rem 'JetBrains Mono', monospace; letter-spacing: .14em;
+  text-transform: uppercase; color: var(--moss); margin-bottom: .6rem; }
+.title { font: 800 clamp(2.4rem, 7vw, 3.8rem)/0.98 'Bricolage Grotesque', sans-serif;
+  letter-spacing: -0.035em; margin: 0 0 .9rem; }
+.title em { font-style: normal; color: var(--signal); }
+.lede { color: var(--muted); font-size: 1.05rem; max-width: 52ch; margin: 0 0 2rem; }
+
+/* section labels */
+.label { font: 600 0.72rem 'JetBrains Mono', monospace; letter-spacing: .12em;
+  text-transform: uppercase; color: var(--muted); margin: 1.6rem 0 .4rem;
+  padding-bottom: .35rem; border-bottom: 1px solid var(--line); }
+
+/* widgets */
+[data-testid="stWidgetLabel"] p { font-weight: 600; font-size: .9rem; color: var(--ink); }
+[data-baseweb="select"] > div, [data-baseweb="input"], [data-baseweb="base-input"],
+[data-testid="stNumberInput"] input, [data-testid="stTextInput"] input {
+  background: var(--card) !important; border-radius: 8px !important;
+  border-color: var(--line) !important; color: var(--ink) !important; }
+[data-baseweb="select"] > div:focus-within, [data-baseweb="input"]:focus-within {
+  border-color: var(--moss) !important; box-shadow: 0 0 0 3px rgba(31,92,74,.18) !important; }
+[data-testid="stNumberInput"] button { background: var(--card) !important; color: var(--ink) !important; }
+
+/* primary button */
+.stButton > button {
+  width: 100%; margin-top: 1.4rem; padding: .9rem 1.2rem; border-radius: 10px; border: 0;
+  background: var(--signal); color: var(--signal-ink);
+  font: 700 1.05rem 'Bricolage Grotesque', sans-serif; letter-spacing: -0.01em;
+  box-shadow: 0 3px 0 #b83a0c; transition: transform .12s ease, box-shadow .12s ease; }
+.stButton > button:hover { background: #ff6c36; color: var(--signal-ink); transform: translateY(-1px);
+  box-shadow: 0 4px 0 #b83a0c; }
+.stButton > button:active { transform: translateY(2px); box-shadow: 0 1px 0 #b83a0c; }
+.stButton > button:focus-visible { outline: 3px solid var(--moss); outline-offset: 3px; }
+
+/* time budget strip */
+.budget { display: flex; flex-wrap: wrap; gap: 1px; background: var(--line);
+  border: 1px solid var(--line); border-radius: 10px; overflow: hidden; margin-top: 1.4rem; }
+.budget div { flex: 1 1 120px; background: var(--card); padding: .7rem .9rem; }
+.budget b { display: block; font: 700 1.5rem 'Bricolage Grotesque', sans-serif; letter-spacing: -0.02em; }
+.budget span { font: 400 .7rem 'JetBrains Mono', monospace; letter-spacing: .08em;
+  text-transform: uppercase; color: var(--muted); }
+
+/* generated plan */
+.plan-head { display: flex; justify-content: space-between; align-items: baseline;
+  margin: 2.6rem 0 .8rem; gap: 1rem; flex-wrap: wrap; }
+.plan-head h2 { font: 800 1.9rem 'Bricolage Grotesque', sans-serif; letter-spacing: -0.03em; margin: 0; }
+.plan-head code { font: 400 .75rem 'JetBrains Mono', monospace; color: var(--muted); background: none; }
+.plan { background: var(--card); border: 1px solid var(--line); border-left: 6px solid var(--moss);
+  border-radius: 12px; padding: 1.4rem 1.6rem; }
+.plan h2 { font: 700 1.3rem 'Bricolage Grotesque', sans-serif; color: var(--moss);
+  margin: 1.8rem 0 .6rem; padding-bottom: .4rem; border-bottom: 1px dashed var(--line); }
+.plan h2:first-child { margin-top: 0; }
+.plan strong { font-family: 'Bricolage Grotesque', sans-serif; }
+
+@media (prefers-reduced-motion: reduce) { .stButton > button { transition: none; } }
+</style>
+""",
+    unsafe_allow_html=True,
 )
 
-# Category selection
-selected_category = st.selectbox(
-    "Select a Category",
-    options=categories,
-    help="Choose a category related to the skill you want to master."
+# ---------------------------------------------------------------- masthead
+st.markdown(
+    """
+<div class="eyebrow">Personal plan generator</div>
+<h1 class="title">Pick a skill.<br>Get a <em>day-by-day</em> plan.</h1>
+<p class="lede">Tell it what you want to learn and how much time you have. It writes one plan,
+with a task for every day and a checkpoint on your schedule.</p>
+""",
+    unsafe_allow_html=True,
 )
 
-# Input fields
-skill = st.text_input("Enter the skill you want to master", placeholder="E.g., Python programming",   help="Specify the skill you want to master, such as programming, painting, or fitness.")
-days_available = st.number_input(
-    "Number of days available", min_value=1, max_value=365, value=30, step=1,
-    help="Enter the total number of days you can dedicate to mastering the skill."
-)
-daily_time = st.number_input(
-    "Daily time commitment (hours)", min_value=1, max_value=24, value=2, step=1,
-    help="Specify how many hours you can commit to learning daily."
-)
-milestone_interval = st.number_input(
-    "Milestone interval (days)", min_value=1, max_value=30, value=5, step=1,
-    help="Set the interval for tracking progress, such as every 5 or 10 days."
+# ---------------------------------------------------------------- provider + model
+providers = []
+if GOOGLE_API_KEY:
+    providers.append("Google Gemini")
+if OPENROUTER_API_KEY:
+    providers.append("OpenRouter")
+
+if not providers:
+    st.error(
+        "No API key found. Set `GOOGLE_API_KEY` and/or `OPENROUTER_API_KEY` in your `.env` "
+        "file, or in Streamlit Cloud under Settings → Secrets."
+    )
+    st.stop()
+
+st.markdown('<div class="label">Model</div>', unsafe_allow_html=True)
+col_provider, col_model = st.columns([1, 2])
+with col_provider:
+    provider = st.selectbox("Provider", providers)
+
+try:
+    with st.spinner("Loading models available to your key…"):
+        models = (
+            list_gemini_models(GOOGLE_API_KEY)
+            if provider == "Google Gemini"
+            else list_openrouter_models(OPENROUTER_API_KEY)
+        )
+except Exception as exc:
+    st.error(f"Could not load the {provider} model list: {exc}")
+    st.stop()
+
+if not models:
+    st.error(f"{provider} returned no text models for this key.")
+    st.stop()
+
+with col_model:
+    model_name = st.selectbox("Model", models, help=f"{len(models)} models available from {provider}.")
+
+# ---------------------------------------------------------------- inputs
+st.markdown('<div class="label">Your goal</div>', unsafe_allow_html=True)
+col_cat, col_skill = st.columns([1, 2])
+with col_cat:
+    category = st.selectbox("Category", CATEGORIES)
+with col_skill:
+    skill = st.text_input("Skill to master", placeholder="e.g. Python for data analysis")
+
+st.markdown('<div class="label">Your time</div>', unsafe_allow_html=True)
+c1, c2, c3 = st.columns(3)
+with c1:
+    days_available = st.number_input("Days", min_value=1, max_value=365, value=30, step=1)
+with c2:
+    daily_time = st.number_input("Hours per day", min_value=1, max_value=24, value=2, step=1)
+with c3:
+    milestone_interval = st.number_input("Milestone every (days)", min_value=1, max_value=30, value=5, step=1)
+
+total_hours = days_available * daily_time
+milestones = days_available // milestone_interval
+st.markdown(
+    f"""
+<div class="budget">
+  <div><b>{total_hours}</b><span>Total hours</span></div>
+  <div><b>{-(-days_available // 7)}</b><span>Weeks</span></div>
+  <div><b>{milestones}</b><span>Milestones</span></div>
+</div>
+""",
+    unsafe_allow_html=True,
 )
 
-# Generate plan button
-if st.button("Generate Plan"):
-    if not skill:
-        st.error("Please enter a skill to master.")
+# ---------------------------------------------------------------- generate
+if st.button("Generate my plan"):
+    if not skill.strip():
+        st.error("Enter the skill you want to master.")
     else:
-        with st.spinner(f"📋 Generating your personalized plan using {selected_model}..."):
-            raw_plan = plan_chains[selected_model].invoke({
-                "skill": skill,
-                "category": selected_category,
-                "days_available": days_available,
-                "daily_time": daily_time,
-                "milestone_interval": milestone_interval,
-            })
-            plan = raw_plan.strip()
+        chain = plan_prompt | build_llm(provider, model_name) | StrOutputParser()
+        try:
+            with st.spinner(f"Writing your plan with {model_name}…"):
+                plan = chain.invoke(
+                    {
+                        "skill": skill.strip(),
+                        "category": category,
+                        "days_available": days_available,
+                        "daily_time": daily_time,
+                        "milestone_interval": milestone_interval,
+                    }
+                ).strip()
+        except Exception as exc:
+            st.error(f"{provider} could not generate the plan with `{model_name}`: {exc}")
+            st.stop()
 
-        # Success message
-        success_placeholder = st.empty()
-        success_placeholder.success("✨ Plan generated successfully!")
-        time.sleep(0.2)
-        success_placeholder.empty()
-
-        # Display the plan
-        st.markdown("### Your Personalized Plan:")
-        # st.code(plan, language="text")
-        st.markdown(plan)
+        st.markdown(
+            f'<div class="plan-head"><h2>{skill.strip()}</h2><code>{model_name}</code></div>',
+            unsafe_allow_html=True,
+        )
+        with st.container(border=False):
+            st.markdown(plan)
+        st.download_button(
+            "Download as Markdown", plan, file_name="plan.md", mime="text/markdown"
+        )
