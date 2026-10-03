@@ -48,15 +48,15 @@ html, body, [data-testid="stApp"] { background: var(--paper); color: var(--ink);
   border-color: var(--moss) !important; box-shadow: 0 0 0 3px rgba(31,92,74,.18) !important; }
 
 /* primary button */
-.stButton > button {
+.stButton > button, [data-testid="stFormSubmitButton"] > button {
   width: 100%; margin-top: 1.4rem; padding: .9rem 1.2rem; border-radius: 10px; border: 0;
   background: var(--signal); color: var(--signal-ink);
   font: 700 1.05rem 'Bricolage Grotesque', sans-serif; letter-spacing: -0.01em;
   box-shadow: 0 3px 0 #b83a0c; transition: transform .12s ease, box-shadow .12s ease; }
-.stButton > button:hover { background: #ff6c36; color: var(--signal-ink); transform: translateY(-1px);
+.stButton > button:hover, [data-testid="stFormSubmitButton"] > button:hover { background: #ff6c36; color: var(--signal-ink); transform: translateY(-1px);
   box-shadow: 0 4px 0 #b83a0c; }
-.stButton > button:active { transform: translateY(2px); box-shadow: 0 1px 0 #b83a0c; }
-.stButton > button:focus-visible { outline: 3px solid var(--moss); outline-offset: 3px; }
+.stButton > button:active, [data-testid="stFormSubmitButton"] > button:active { transform: translateY(2px); box-shadow: 0 1px 0 #b83a0c; }
+.stButton > button:focus-visible, [data-testid="stFormSubmitButton"] > button:focus-visible { outline: 3px solid var(--moss); outline-offset: 3px; }
 
 /* time budget strip */
 .budget { display: flex; flex-wrap: wrap; gap: 1px; background: var(--line);
@@ -78,4 +78,35 @@ html, body, [data-testid="stApp"] { background: var(--paper); color: var(--ink);
 .plan h2:first-child { margin-top: 0; }
 .plan strong { font-family: 'Bricolage Grotesque', sans-serif; }
 
-@media (prefers-reduced-motion: reduce) { .stButton > button { transition: none; } }
+.stButton > button:disabled, [data-testid="stFormSubmitButton"] > button:disabled {
+  background: var(--line); color: var(--muted); box-shadow: 0 3px 0 #b3beb7; transform: none; cursor: not-allowed; }
+
+/* unlock gate: the form becomes the card */
+[data-testid="stTextInputRootElement"] { background: var(--paper) !important;
+  border: 1px solid var(--line) !important; border-radius: 8px !important; overflow: hidden; }
+[data-testid="stTextInputRootElement"]:focus-within {
+  border-color: var(--moss) !important; box-shadow: 0 0 0 3px rgba(31,92,74,.18) !important; }
+[data-testid="stTextInputRootElement"] input { color: var(--ink) !important; background: transparent !important; }
+[data-testid="stTextInputRootElement"] button { color: var(--muted) !important; }
+[data-testid="stTextInputRootElement"] input:disabled { opacity: .5; cursor: not-allowed; }
+.gate-head { margin-bottom: 1.1rem; }
+.gate-head .title { font-size: clamp(1.9rem, 5vw, 2.5rem); margin-bottom: .6rem; }
+.gate-head .lede { margin-bottom: 0; font-size: 1rem; }
+[data-testid="stForm"] { background: var(--card); border: 1px solid var(--line);
+  border-left: 6px solid var(--moss); border-radius: 12px; padding: 1.4rem 1.6rem 1.6rem; }
+[data-testid="stForm"] [data-testid="stElementContainer"]:has([data-testid="stFormSubmitButton"]),
+[data-testid="stForm"] [data-testid="stElementContainer"]:has([data-testid="stFormSubmitButton"]) > div { width: 100%; }
+[data-testid="stForm"] [data-testid="stFormSubmitButton"] { width: 100%; }
+[data-testid="stForm"] [data-testid="stFormSubmitButton"] > button { width: 100%; margin-top: .2rem; }
+.gate-status { margin-top: 1.1rem; padding-top: .9rem; border-top: 1px dashed var(--line); }
+.gate-row { display: flex; align-items: center; justify-content: space-between; gap: 1rem; flex-wrap: wrap; }
+.gate-row > span { font: 600 .72rem 'JetBrains Mono', monospace; letter-spacing: .12em;
+  text-transform: uppercase; color: var(--muted); }
+.pips { display: flex; gap: 6px; }
+.pip { width: 14px; height: 14px; border-radius: 4px; background: var(--paper); border: 1.5px solid var(--line); }
+.pip.used { background: var(--signal); border-color: #b83a0c; }
+.gate-note { margin: .8rem 0 0; font: 400 .85rem 'Instrument Sans', sans-serif; color: var(--muted); }
+.gate-note b { color: var(--signal); font-weight: 600; }
+.gate-note.locked { color: var(--ink); }
+
+@media (prefers-reduced-motion: reduce) { .stButton > button, [data-testid="stFormSubmitButton"] > button { transition: none; } }

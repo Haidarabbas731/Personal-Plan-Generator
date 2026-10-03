@@ -16,8 +16,8 @@ from .ui import (
 def run() -> None:
     st.set_page_config(page_title=PAGE_TITLE, page_icon=PAGE_ICON, layout="centered")
     inject_styles()
-    render_header()
     require_password()
+    render_header()
 
     provider, model_name = render_model_picker()
     category, skill = render_goal_inputs()
