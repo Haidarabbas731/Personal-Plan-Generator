@@ -2,6 +2,7 @@ import os
 
 import requests
 import streamlit as st
+import streamlit.components.v1 as components
 from dotenv import load_dotenv
 from google import genai
 from langchain_core.output_parsers import StrOutputParser
@@ -300,12 +301,34 @@ if st.button("Generate my plan"):
             st.error(f"{provider} could not generate the plan with `{model_name}`: {exc}")
             st.stop()
 
-        st.markdown(
-            f'<div class="plan-head"><h2>{skill.strip()}</h2><code>{model_name}</code></div>',
-            unsafe_allow_html=True,
-        )
-        with st.container(border=False):
-            st.markdown(plan)
-        st.download_button(
-            "Download as Markdown", plan, file_name="plan.md", mime="text/markdown"
+        # Keep the plan across reruns (e.g. clicking the download button).
+        st.session_state["result"] = {
+            "skill": skill.strip(),
+            "model": model_name,
+            "plan": plan,
+        }
+        st.session_state["scroll_to_plan"] = True
+
+# ---------------------------------------------------------------- result
+result = st.session_state.get("result")
+if result:
+    st.markdown(
+        f'<div id="plan-result" class="plan-head"><h2>{result["skill"]}</h2><code>{result["model"]}</code></div>',
+        unsafe_allow_html=True,
+    )
+    with st.container(border=False):
+        st.markdown(result["plan"])
+    st.download_button(
+        "Download as Markdown", result["plan"], file_name="plan.md", mime="text/markdown"
+    )
+    # Jump to the finished plan, only right after generating (not on later reruns).
+    if st.session_state.pop("scroll_to_plan", False):
+        components.html(
+            """<script>
+            setTimeout(() => {
+              const el = window.parent.document.getElementById("plan-result");
+              if (el) el.scrollIntoView({behavior: "smooth", block: "start"});
+            }, 100);
+            </script>""",
+            height=0,
         )
