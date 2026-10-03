@@ -1,0 +1,81 @@
+@import url('https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700;12..96,800&family=Instrument+Sans:wght@400;500;600&family=JetBrains+Mono:wght@400;600&display=swap');
+
+:root {
+  --paper: #eef1ec;
+  --card: #fbfcfa;
+  --ink: #12211d;
+  --muted: #5b6b66;
+  --line: #cfd8d2;
+  --signal: #ff5a1f;
+  --signal-ink: #ffffff;
+  --moss: #1f5c4a;
+}
+
+html, body, [data-testid="stApp"] { background: var(--paper); color: var(--ink); }
+[data-testid="stApp"] { font-family: 'Instrument Sans', system-ui, sans-serif; }
+#MainMenu, footer, [data-testid="stToolbar"], [data-testid="stDecoration"] { display: none; }
+[data-testid="stHeader"] { background: transparent; }
+.block-container { max-width: 760px; padding-top: 2.5rem; padding-bottom: 5rem; }
+
+/* masthead */
+.eyebrow { font: 600 0.72rem 'JetBrains Mono', monospace; letter-spacing: .14em;
+  text-transform: uppercase; color: var(--moss); margin-bottom: .6rem; }
+.title { font: 800 clamp(2.4rem, 7vw, 3.8rem)/0.98 'Bricolage Grotesque', sans-serif;
+  letter-spacing: -0.035em; margin: 0 0 .9rem; }
+.title em { font-style: normal; color: var(--signal); }
+.lede { color: var(--muted); font-size: 1.05rem; max-width: 52ch; margin: 0 0 2rem; }
+
+/* section labels */
+.label { font: 600 0.72rem 'JetBrains Mono', monospace; letter-spacing: .12em;
+  text-transform: uppercase; color: var(--muted); margin: 1.6rem 0 .4rem;
+  padding-bottom: .35rem; border-bottom: 1px solid var(--line); }
+
+/* widgets */
+[data-testid="stWidgetLabel"] p { font-weight: 600; font-size: .9rem; color: var(--ink); }
+/* one border per control: style the outer wrapper, strip the inner layers */
+[data-baseweb="select"] > div, [data-baseweb="input"] {
+  background: var(--card) !important; border: 1px solid var(--line) !important;
+  border-radius: 8px !important; color: var(--ink) !important; overflow: hidden; }
+[data-baseweb="base-input"], [data-baseweb="input"] input {
+  background: transparent !important; border: 0 !important; border-radius: 0 !important;
+  box-shadow: none !important; color: var(--ink) !important; }
+[data-baseweb="select"] div, [data-baseweb="select"] span { color: var(--ink); }
+[data-baseweb="select"] svg { fill: var(--muted); }
+[data-testid="stNumberInput"] button { background: transparent !important; color: var(--ink) !important;
+  border: 0 !important; border-left: 1px solid var(--line) !important; border-radius: 0 !important; }
+[data-testid="stNumberInput"] button:hover { background: var(--paper) !important; }
+[data-baseweb="select"] > div:focus-within, [data-baseweb="input"]:focus-within {
+  border-color: var(--moss) !important; box-shadow: 0 0 0 3px rgba(31,92,74,.18) !important; }
+
+/* primary button */
+.stButton > button {
+  width: 100%; margin-top: 1.4rem; padding: .9rem 1.2rem; border-radius: 10px; border: 0;
+  background: var(--signal); color: var(--signal-ink);
+  font: 700 1.05rem 'Bricolage Grotesque', sans-serif; letter-spacing: -0.01em;
+  box-shadow: 0 3px 0 #b83a0c; transition: transform .12s ease, box-shadow .12s ease; }
+.stButton > button:hover { background: #ff6c36; color: var(--signal-ink); transform: translateY(-1px);
+  box-shadow: 0 4px 0 #b83a0c; }
+.stButton > button:active { transform: translateY(2px); box-shadow: 0 1px 0 #b83a0c; }
+.stButton > button:focus-visible { outline: 3px solid var(--moss); outline-offset: 3px; }
+
+/* time budget strip */
+.budget { display: flex; flex-wrap: wrap; gap: 1px; background: var(--line);
+  border: 1px solid var(--line); border-radius: 10px; overflow: hidden; margin-top: 1.4rem; }
+.budget div { flex: 1 1 120px; background: var(--card); padding: .7rem .9rem; }
+.budget b { display: block; font: 700 1.5rem 'Bricolage Grotesque', sans-serif; letter-spacing: -0.02em; }
+.budget span { font: 400 .7rem 'JetBrains Mono', monospace; letter-spacing: .08em;
+  text-transform: uppercase; color: var(--muted); }
+
+/* generated plan */
+.plan-head { display: flex; justify-content: space-between; align-items: baseline;
+  margin: 2.6rem 0 .8rem; gap: 1rem; flex-wrap: wrap; }
+.plan-head h2 { font: 800 1.9rem 'Bricolage Grotesque', sans-serif; letter-spacing: -0.03em; margin: 0; }
+.plan-head code { font: 400 .75rem 'JetBrains Mono', monospace; color: var(--muted); background: none; }
+.plan { background: var(--card); border: 1px solid var(--line); border-left: 6px solid var(--moss);
+  border-radius: 12px; padding: 1.4rem 1.6rem; }
+.plan h2 { font: 700 1.3rem 'Bricolage Grotesque', sans-serif; color: var(--moss);
+  margin: 1.8rem 0 .6rem; padding-bottom: .4rem; border-bottom: 1px dashed var(--line); }
+.plan h2:first-child { margin-top: 0; }
+.plan strong { font-family: 'Bricolage Grotesque', sans-serif; }
+
+@media (prefers-reduced-motion: reduce) { .stButton > button { transition: none; } }
