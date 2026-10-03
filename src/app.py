@@ -1,5 +1,6 @@
 import streamlit as st
 
+from .auth import require_password
 from .config import PAGE_ICON, PAGE_TITLE
 from .generator import PlanRequest, generate_plan
 from .ui import (
@@ -16,6 +17,7 @@ def run() -> None:
     st.set_page_config(page_title=PAGE_TITLE, page_icon=PAGE_ICON, layout="centered")
     inject_styles()
     render_header()
+    require_password()
 
     provider, model_name = render_model_picker()
     category, skill = render_goal_inputs()

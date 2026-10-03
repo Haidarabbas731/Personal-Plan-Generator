@@ -11,12 +11,13 @@ It writes one plan with a task for every day and a milestone on your schedule.
 - Choose the provider (Google Gemini or OpenRouter) and any model your key can use
 - Jumps to the plan when it finishes, and keeps it on screen after you download it
 - Download the plan as Markdown
+- Password-protected: the app stays locked until `APP_PASSWORD` is entered, with a lockout after 5 wrong attempts
 
 ## Setup
 
 Requires Python 3.13+.
 
-1. Copy `.env.example` to `.env` and set at least one key:
+1. Copy `.env.example` to `.env`, set `APP_PASSWORD`, and set at least one API key:
    - `GOOGLE_API_KEY` from <https://aistudio.google.com/apikey>
    - `OPENROUTER_API_KEY` from <https://openrouter.ai/keys>
 
@@ -41,6 +42,7 @@ Without uv: `streamlit run main.py`.
 main.py                 # entrypoint
 src/
   app.py                # wires the page together, handles Generate and session state
+  auth.py               # password gate with lockout
   config.py             # API keys, categories, page settings
   prompts.py            # plan prompt template
   models.py             # model discovery and LLM client setup

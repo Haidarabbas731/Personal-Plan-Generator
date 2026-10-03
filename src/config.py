@@ -36,3 +36,4 @@ def get_key(name: str) -> str | None:
 
 GOOGLE_API_KEY = get_key("GOOGLE_API_KEY")
 OPENROUTER_API_KEY = get_key("OPENROUTER_API_KEY")
+APP_PASSWORD = get_key("APP_PASSWORD")
