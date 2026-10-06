@@ -1,0 +1,26 @@
+# Compose file for Dokploy.
+#
+# Secrets are read from ${VAR}: set them in the Dokploy project's "Environment" tab
+# (see .env.dokploy.example). Add the domain in Dokploy against service `app`, port 8501.
+#
+# Run a single replica: the password lockout counter lives in process memory.
+
+services:
+
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    environment:
+      APP_PASSWORD: ${APP_PASSWORD}
+      GOOGLE_API_KEY: ${GOOGLE_API_KEY:-}
+      OPENROUTER_API_KEY: ${OPENROUTER_API_KEY:-}
+    expose:
+      - "8501"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8501/_stcore/health')"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    restart: unless-stopped
